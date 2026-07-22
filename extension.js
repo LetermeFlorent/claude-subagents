@@ -13,11 +13,20 @@ function projLabel(p) {
   return parts.length ? parts[parts.length - 1] : p;
 }
 
+function encodePath(p) { return p.replace(/[^a-zA-Z0-9]/g, '-'); }
+
+function allowedProjectDirs() {
+  const folders = vscode.workspace.workspaceFolders || [];
+  return folders.map(function (f) { return encodePath(f.uri.fsPath).toLowerCase(); });
+}
+
 function scan() {
   const now = Date.now();
   const res = [];
   let projs = [];
   try { projs = fs.readdirSync(PROJECTS); } catch (_) { return res; }
+  const allowed = allowedProjectDirs();
+  if (allowed.length) projs = projs.filter(function (p) { return allowed.indexOf(p.toLowerCase()) !== -1; });
   for (const proj of projs) {
     const pdir = path.join(PROJECTS, proj);
     let entries = [];
