@@ -70,38 +70,33 @@ function fmtDur(ms) {
   return m + 'm' + String(s % 60).padStart(2, '0');
 }
 
-function esc(s) { return String(s).replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&'); }
-
-function buildTooltip(agents) {
-  const md = new vscode.MarkdownString(undefined, true);
-  if (!agents.length) {
-    md.appendMarkdown('Aucun sous-agent actif.');
-    return md;
-  }
-  md.appendMarkdown('**' + agents.length + ' sous-agent' + (agents.length > 1 ? 's' : '') + ' actif' + (agents.length > 1 ? 's' : '') + '**\n\n');
-  const g = {}, order = [];
-  agents.forEach(function (a) {
-    if (!g[a.proj]) { g[a.proj] = []; order.push(a.proj); }
-    g[a.proj].push(a);
-  });
-  order.forEach(function (p) {
-    md.appendMarkdown('_' + esc(p) + '_\n\n');
-    g[p].forEach(function (a) {
-      md.appendMarkdown('- **' + esc(a.type) + '** (' + a.durLabel + ') — ' + esc(a.desc || '(sans description)') + '\n');
-    });
-    md.appendMarkdown('\n');
-  });
-  return md;
-}
-
-let item, timer;
+let item, timer, lastAgents = [];
 
 function tick() {
-  const agents = scan();
-  const n = agents.length;
+  lastAgents = scan();
+  const n = lastAgents.length;
   item.text = n ? '$(sync~spin) ' + n + ' agent' + (n > 1 ? 's' : '') : '$(circle-outline) 0 agent';
-  item.tooltip = buildTooltip(agents);
-  if (n) item.show(); else item.show();
+  item.tooltip = n ? 'Cliquer pour voir la liste des agents actifs' : 'Aucun sous-agent actif';
+  item.show();
+}
+
+async function showList() {
+  if (!lastAgents.length) {
+    vscode.window.showInformationMessage('Aucun sous-agent actif.');
+    return;
+  }
+  const items = lastAgents.map(function (a) {
+    return {
+      label: '$(sync~spin) ' + a.type,
+      description: a.durLabel,
+      detail: '[' + a.proj + '] ' + (a.desc || '(sans description)')
+    };
+  });
+  await vscode.window.showQuickPick(items, {
+    placeHolder: lastAgents.length + ' sous-agent' + (lastAgents.length > 1 ? 's' : '') + ' actif' + (lastAgents.length > 1 ? 's' : ''),
+    matchOnDescription: true,
+    matchOnDetail: true
+  });
 }
 
 function scheduled() {
@@ -113,8 +108,10 @@ function scheduled() {
 function activate(context) {
   item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
   item.name = 'Claude Subagents';
+  item.command = 'claudeSubagents.showList';
   context.subscriptions.push(item);
   context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.refresh', tick));
+  context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.showList', showList));
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(function (e) {
     if (e.affectsConfiguration('claudeSubagents')) scheduled();
   }));
