@@ -2,7 +2,7 @@
   "name": "claude-subagents",
   "displayName": "Claude Subagents",
   "description": "Panneau lateral listant les sous-agents Claude Code (type, description, statut actif/fini, duree) que l'extension officielle n'affiche pas.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",
