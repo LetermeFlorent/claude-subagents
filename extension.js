@@ -8,22 +8,42 @@ const ACTIVE_MS = 15000;
 
 function cfg() { return vscode.workspace.getConfiguration('claudeSubagents'); }
 
+function projLabel(p) {
+  const parts = p.split('-').filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : p;
+}
+
+function readTail(file, bytes) {
+  try {
+    const fd = fs.openSync(file, 'r');
+    const size = fs.fstatSync(fd).size;
+    const start = Math.max(0, size - bytes);
+    const buf = Buffer.alloc(size - start);
+    if (buf.length) fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    return buf.toString('utf8');
+  } catch (_) { return ''; }
+}
+
 function scan() {
-  const keepMs = Math.max(1, Number(cfg().get('keepMinutes')) || 30) * 60000;
   const now = Date.now();
   const res = [];
   let projs = [];
   try { projs = fs.readdirSync(PROJECTS); } catch (_) { return res; }
   for (const proj of projs) {
     const pdir = path.join(PROJECTS, proj);
-    let sessions = [];
-    try { sessions = fs.readdirSync(pdir); } catch (_) { continue; }
-    for (const s of sessions) {
-      const sub = path.join(pdir, s, 'subagents');
+    let entries = [];
+    try { entries = fs.readdirSync(pdir, { withFileTypes: true }); } catch (_) { continue; }
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const session = e.name;
+      const sub = path.join(pdir, session, 'subagents');
       let files = [];
       try { files = fs.readdirSync(sub); } catch (_) { continue; }
-      for (const f of files) {
-        if (!f.endsWith('.meta.json')) continue;
+      const metas = files.filter(function (f) { return f.endsWith('.meta.json'); });
+      if (!metas.length) continue;
+      const tail = readTail(path.join(pdir, session + '.jsonl'), 400000);
+      for (const f of metas) {
         const id = f.slice(0, -'.meta.json'.length);
         let meta = {};
         try { meta = JSON.parse(fs.readFileSync(path.join(sub, f), 'utf8')); } catch (_) {}
@@ -31,20 +51,19 @@ function scan() {
         try { const st = fs.statSync(path.join(sub, f)); started = st.birthtimeMs || st.ctimeMs || st.mtimeMs; } catch (_) {}
         try { const st = fs.statSync(path.join(sub, id + '.jsonl')); last = st.mtimeMs; } catch (_) {}
         if (!last) last = started;
-        if (now - last > keepMs) continue;
+        const finished = (meta.toolUseId && tail.indexOf('"tool_use_id":"' + meta.toolUseId + '"') >= 0) || (now - last > 90000);
+        if (finished) continue;
         res.push({
           type: meta.agentType || '?',
           desc: meta.description || '',
-          depth: meta.spawnDepth || 0,
-          proj: proj,
-          active: (now - last) < ACTIVE_MS,
+          proj: projLabel(proj),
           last: last,
-          durLabel: fmtDur(Math.max(0, last - started))
+          durLabel: fmtDur(Math.max(0, now - started))
         });
       }
     }
   }
-  res.sort(function (a, b) { return (b.active ? 1 : 0) - (a.active ? 1 : 0) || b.last - a.last; });
+  res.sort(function (a, b) { return b.last - a.last; });
   return res;
 }
 
@@ -82,10 +101,9 @@ function html(n) {
     + 'body{font-family:var(--vscode-font-family);color:var(--vscode-foreground);padding:8px 6px;font-size:12px;}'
     + '.head{display:flex;justify-content:space-between;align-items:center;opacity:.7;margin-bottom:10px;font-size:11px;}'
     + '.empty{opacity:.5;font-style:italic;padding:12px 4px;}'
-    + '.a{display:flex;gap:8px;padding:7px 4px;border-radius:6px;}'
-    + '.a+.a{border-top:1px solid rgba(127,127,127,.14);}'
-    + '.dot{flex:none;width:8px;height:8px;border-radius:50%;margin-top:4px;background:#7a7a7a;}'
-    + '.dot.on{background:#3fb950;box-shadow:0 0 0 0 rgba(63,185,80,.6);animation:p 1.6s infinite;}'
+    + '.grp{margin:12px 0 3px;font-size:10px;letter-spacing:.5px;opacity:.5;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'
+    + '.a{display:flex;gap:8px;padding:6px 4px;}'
+    + '.dot{flex:none;width:8px;height:8px;border-radius:50%;margin-top:4px;background:#3fb950;box-shadow:0 0 0 0 rgba(63,185,80,.6);animation:p 1.6s infinite;}'
     + '@keyframes p{0%{box-shadow:0 0 0 0 rgba(63,185,80,.5);}70%{box-shadow:0 0 0 6px rgba(63,185,80,0);}100%{box-shadow:0 0 0 0 rgba(63,185,80,0);}}'
     + '.b{min-width:0;flex:1;}'
     + '.t{display:flex;justify-content:space-between;gap:6px;}'
@@ -93,20 +111,21 @@ function html(n) {
     + '.meta{opacity:.55;font-size:10px;white-space:nowrap;}'
     + '.d{opacity:.75;font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}'
     + '</style></head><body>'
-    + '<div class="head"><span>SOUS-AGENTS</span><span id="cnt"></span></div>'
+    + '<div class="head"><span>SOUS-AGENTS ACTIFS</span><span id="cnt"></span></div>'
     + '<div id="list"></div>'
     + '<script nonce="' + n + '">'
     + 'var esc=function(s){return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});};'
     + 'window.addEventListener("message",function(e){var m=e.data;if(!m||m.type!=="data")return;'
-    + 'var act=m.agents.filter(function(a){return a.active;}).length;'
-    + 'document.getElementById("cnt").textContent=act+" actif"+(act>1?"s":"")+" / "+m.agents.length;'
+    + 'var A=m.agents;'
+    + 'document.getElementById("cnt").textContent=A.length+" actif"+(A.length>1?"s":"");'
     + 'var L=document.getElementById("list");'
-    + 'if(!m.agents.length){L.innerHTML="<div class=\\"empty\\">Aucun sous-agent recent.</div>";return;}'
-    + 'L.innerHTML=m.agents.map(function(a){'
-    + 'return "<div class=\\"a\\"><div class=\\"dot "+(a.active?"on":"")+"\\"></div><div class=\\"b\\">"'
-    + '+"<div class=\\"t\\"><span class=\\"type\\">"+esc(a.type)+"</span><span class=\\"meta\\">"+(a.active?"actif":"fini")+" "+esc(a.durLabel)+"</span></div>"'
-    + '+"<div class=\\"d\\">"+esc(a.desc||"(sans description)")+"</div>"'
-    + '+"</div></div>";}).join("");'
+    + 'if(!A.length){L.innerHTML="<div class=\\"empty\\">Aucun sous-agent actif.</div>";return;}'
+    + 'var g={},order=[];A.forEach(function(a){if(!g[a.proj]){g[a.proj]=[];order.push(a.proj);}g[a.proj].push(a);});'
+    + 'L.innerHTML=order.map(function(p){var items=g[p].map(function(a){'
+    + 'return "<div class=\\"a\\"><div class=\\"dot\\"></div><div class=\\"b\\">"'
+    + '+"<div class=\\"t\\"><span class=\\"type\\">"+esc(a.type)+"</span><span class=\\"meta\\">"+esc(a.durLabel)+"</span></div>"'
+    + '+"<div class=\\"d\\">"+esc(a.desc||"(sans description)")+"</div></div></div>";}).join("");'
+    + 'return "<div class=\\"grp\\">"+esc(p)+"</div>"+items;}).join("");'
     + '});'
     + '</script></body></html>';
 }
