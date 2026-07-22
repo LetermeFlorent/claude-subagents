@@ -2,7 +2,7 @@
   "name": "claude-subagents",
   "displayName": "Claude Subagents",
   "description": "Panneau lateral listant les sous-agents Claude Code (type, description, statut actif/fini, duree) que l'extension officielle n'affiche pas.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",
@@ -32,7 +32,7 @@
       "title": "Claude Subagents",
       "properties": {
         "claudeSubagents.refreshSeconds": { "type": "number", "default": 3, "description": "Intervalle de rafraichissement (secondes)." },
-        "claudeSubagents.keepMinutes": { "type": "number", "default": 30, "description": "Afficher les sous-agents actifs dans les N dernieres minutes." }
+        "claudeSubagents.keepMinutes": { "type": "number", "default": 2, "description": "Afficher les sous-agents des N dernieres minutes (les plus vieux disparaissent)." }
       }
     }
   }
