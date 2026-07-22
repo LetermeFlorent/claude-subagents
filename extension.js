@@ -4,25 +4,13 @@ const os = require('os');
 const path = require('path');
 
 const PROJECTS = path.join(os.homedir(), '.claude', 'projects');
-const ACTIVE_MS = 15000;
+const ACTIVE_MS = 30000;
 
 function cfg() { return vscode.workspace.getConfiguration('claudeSubagents'); }
 
 function projLabel(p) {
   const parts = p.split('-').filter(Boolean);
   return parts.length ? parts[parts.length - 1] : p;
-}
-
-function readTail(file, bytes) {
-  try {
-    const fd = fs.openSync(file, 'r');
-    const size = fs.fstatSync(fd).size;
-    const start = Math.max(0, size - bytes);
-    const buf = Buffer.alloc(size - start);
-    if (buf.length) fs.readSync(fd, buf, 0, buf.length, start);
-    fs.closeSync(fd);
-    return buf.toString('utf8');
-  } catch (_) { return ''; }
 }
 
 function scan() {
@@ -42,7 +30,6 @@ function scan() {
       try { files = fs.readdirSync(sub); } catch (_) { continue; }
       const metas = files.filter(function (f) { return f.endsWith('.meta.json'); });
       if (!metas.length) continue;
-      const tail = readTail(path.join(pdir, session + '.jsonl'), 400000);
       for (const f of metas) {
         const id = f.slice(0, -'.meta.json'.length);
         let meta = {};
@@ -51,8 +38,7 @@ function scan() {
         try { const st = fs.statSync(path.join(sub, f)); started = st.birthtimeMs || st.ctimeMs || st.mtimeMs; } catch (_) {}
         try { const st = fs.statSync(path.join(sub, id + '.jsonl')); last = st.mtimeMs; } catch (_) {}
         if (!last) last = started;
-        const finished = (meta.toolUseId && tail.indexOf('"tool_use_id":"' + meta.toolUseId + '"') >= 0) || (now - last > 90000);
-        if (finished) continue;
+        if (now - last > ACTIVE_MS) continue;
         res.push({
           type: meta.agentType || '?',
           desc: meta.description || '',
