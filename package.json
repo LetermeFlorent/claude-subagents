@@ -1,8 +1,8 @@
 {
   "name": "claude-subagents",
   "displayName": "Claude Subagents",
-  "description": "Panneau lateral listant les sous-agents Claude Code (type, description, statut actif/fini, duree) que l'extension officielle n'affiche pas.",
-  "version": "0.1.7",
+  "description": "Item de barre de statut listant les sous-agents Claude Code actifs (type, description, duree) que l'extension officielle n'affiche pas.",
+  "version": "0.2.0",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",
@@ -18,21 +18,10 @@
     "commands": [
       { "command": "claudeSubagents.refresh", "title": "Claude Subagents: Rafraichir" }
     ],
-    "viewsContainers": {
-      "activitybar": [
-        { "id": "claudeSubagents", "title": "Claude Agents", "icon": "media/agents.svg" }
-      ]
-    },
-    "views": {
-      "claudeSubagents": [
-        { "id": "claudeSubagents.view", "name": "Sous-agents", "type": "webview" }
-      ]
-    },
     "configuration": {
       "title": "Claude Subagents",
       "properties": {
-        "claudeSubagents.refreshSeconds": { "type": "number", "default": 3, "description": "Intervalle de rafraichissement (secondes)." },
-        "claudeSubagents.keepMinutes": { "type": "number", "default": 2, "description": "Afficher les sous-agents des N dernieres minutes (les plus vieux disparaissent)." }
+        "claudeSubagents.refreshSeconds": { "type": "number", "default": 3, "description": "Intervalle de rafraichissement (secondes)." }
       }
     }
   }
