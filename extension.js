@@ -4,7 +4,7 @@ const os = require('os');
 const path = require('path');
 
 const PROJECTS = path.join(os.homedir(), '.claude', 'projects');
-const ACTIVE_MS = 45000;
+const ACTIVE_MS = 15000;
 
 function cfg() { return vscode.workspace.getConfiguration('claudeSubagents'); }
 
