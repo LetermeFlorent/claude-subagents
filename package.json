@@ -2,7 +2,7 @@
   "name": "claude-subagents",
   "displayName": "Claude Subagents",
   "description": "Item de barre de statut listant les sous-agents Claude Code actifs (type, description, duree) que l'extension officielle n'affiche pas.",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",

@@ -20,11 +20,18 @@ function allowedProjectDirs() {
   return folders.map(function (f) { return encodePath(f.uri.fsPath).toLowerCase(); });
 }
 
-function collectMetas(dir, proj, now, res) {
-  let files = [];
-  try { files = fs.readdirSync(dir); } catch (_) { return; }
-  const metas = files.filter(function (f) { return f.endsWith('.meta.json'); });
-  for (const f of metas) {
+const MAX_DEPTH = 4;
+
+function collectMetas(dir, proj, now, res, depth) {
+  let entries = [];
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+  for (const e of entries) {
+    if (e.isDirectory()) {
+      if (depth < MAX_DEPTH) collectMetas(path.join(dir, e.name), proj, now, res, depth + 1);
+      continue;
+    }
+    if (!e.name.endsWith('.meta.json')) continue;
+    const f = e.name;
     const id = f.slice(0, -'.meta.json'.length);
     let meta = {};
     try { meta = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (_) {}
@@ -59,14 +66,7 @@ function scan() {
       if (!e.isDirectory()) continue;
       const session = e.name;
       const sub = path.join(pdir, session, 'subagents');
-      collectMetas(sub, proj, now, res);
-      const wfRoot = path.join(sub, 'workflows');
-      let wfDirs = [];
-      try { wfDirs = fs.readdirSync(wfRoot, { withFileTypes: true }); } catch (_) { continue; }
-      for (const wf of wfDirs) {
-        if (!wf.isDirectory()) continue;
-        collectMetas(path.join(wfRoot, wf.name), proj, now, res);
-      }
+      collectMetas(sub, proj, now, res, 0);
     }
   }
   res.sort(function (a, b) { return b.last - a.last; });
