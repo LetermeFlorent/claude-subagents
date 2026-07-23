@@ -20,6 +20,30 @@ function allowedProjectDirs() {
   return folders.map(function (f) { return encodePath(f.uri.fsPath).toLowerCase(); });
 }
 
+function collectMetas(dir, proj, now, res) {
+  let files = [];
+  try { files = fs.readdirSync(dir); } catch (_) { return; }
+  const metas = files.filter(function (f) { return f.endsWith('.meta.json'); });
+  for (const f of metas) {
+    const id = f.slice(0, -'.meta.json'.length);
+    let meta = {};
+    try { meta = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (_) {}
+    let started = 0, last = 0;
+    try { const st = fs.statSync(path.join(dir, f)); started = st.birthtimeMs || st.ctimeMs || st.mtimeMs; } catch (_) {}
+    try { const st = fs.statSync(path.join(dir, id + '.jsonl')); last = st.mtimeMs; } catch (_) {}
+    if (!last) last = started;
+    if (now - last > ACTIVE_MS) continue;
+    res.push({
+      id: id,
+      type: meta.agentType || '?',
+      desc: meta.description || '',
+      proj: projLabel(proj),
+      last: last,
+      durLabel: fmtDur(Math.max(0, now - started))
+    });
+  }
+}
+
 function scan() {
   const now = Date.now();
   const res = [];
@@ -35,27 +59,13 @@ function scan() {
       if (!e.isDirectory()) continue;
       const session = e.name;
       const sub = path.join(pdir, session, 'subagents');
-      let files = [];
-      try { files = fs.readdirSync(sub); } catch (_) { continue; }
-      const metas = files.filter(function (f) { return f.endsWith('.meta.json'); });
-      if (!metas.length) continue;
-      for (const f of metas) {
-        const id = f.slice(0, -'.meta.json'.length);
-        let meta = {};
-        try { meta = JSON.parse(fs.readFileSync(path.join(sub, f), 'utf8')); } catch (_) {}
-        let started = 0, last = 0;
-        try { const st = fs.statSync(path.join(sub, f)); started = st.birthtimeMs || st.ctimeMs || st.mtimeMs; } catch (_) {}
-        try { const st = fs.statSync(path.join(sub, id + '.jsonl')); last = st.mtimeMs; } catch (_) {}
-        if (!last) last = started;
-        if (now - last > ACTIVE_MS) continue;
-        res.push({
-          id: id,
-          type: meta.agentType || '?',
-          desc: meta.description || '',
-          proj: projLabel(proj),
-          last: last,
-          durLabel: fmtDur(Math.max(0, now - started))
-        });
+      collectMetas(sub, proj, now, res);
+      const wfRoot = path.join(sub, 'workflows');
+      let wfDirs = [];
+      try { wfDirs = fs.readdirSync(wfRoot, { withFileTypes: true }); } catch (_) { continue; }
+      for (const wf of wfDirs) {
+        if (!wf.isDirectory()) continue;
+        collectMetas(path.join(wfRoot, wf.name), proj, now, res);
       }
     }
   }
