@@ -70,14 +70,17 @@ function fmtDur(ms) {
   return m + 'm' + String(s % 60).padStart(2, '0');
 }
 
-let item, timer, lastAgents = [];
+let item, timer, lastAgents = [], lastText = null, lastTooltip = null;
 
 function tick() {
   lastAgents = scan();
   const n = lastAgents.length;
-  item.text = n ? '$(sync~spin) ' + n + ' agent' + (n > 1 ? 's' : '') : '$(circle-outline) 0 agent';
-  item.tooltip = n ? 'Cliquer pour voir la liste des agents actifs' : 'Aucun sous-agent actif';
-  item.show();
+  const text = n ? '$(sync~spin) ' + n + ' agent' + (n > 1 ? 's' : '') : '$(circle-outline) 0 agent';
+  const tooltip = n ? 'Cliquer pour voir la liste des agents actifs' : 'Aucun sous-agent actif';
+  if (text === lastText && tooltip === lastTooltip) return;
+  lastText = text; lastTooltip = tooltip;
+  item.text = text;
+  item.tooltip = tooltip;
 }
 
 async function showList() {
@@ -106,9 +109,10 @@ function scheduled() {
 }
 
 function activate(context) {
-  item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+  item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 110);
   item.name = 'Claude Subagents';
   item.command = 'claudeSubagents.showList';
+  item.show();
   context.subscriptions.push(item);
   context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.refresh', tick));
   context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.showList', showList));
