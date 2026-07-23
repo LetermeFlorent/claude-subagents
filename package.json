@@ -2,7 +2,7 @@
   "name": "claude-subagents",
   "displayName": "Claude Subagents",
   "description": "Item de barre de statut listant les sous-agents Claude Code actifs (type, description, duree) que l'extension officielle n'affiche pas.",
-  "version": "0.2.1",
+  "version": "0.2.4",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",
@@ -14,6 +14,7 @@
   "categories": ["Other"],
   "activationEvents": ["onStartupFinished"],
   "main": "./extension.js",
+  "extensionKind": ["ui"],
   "contributes": {
     "commands": [
       { "command": "claudeSubagents.refresh", "title": "Claude Subagents: Rafraichir" },
