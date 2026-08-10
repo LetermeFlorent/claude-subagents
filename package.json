@@ -1,8 +1,8 @@
 {
   "name": "claude-subagents",
   "displayName": "Claude Subagents",
-  "description": "Item de barre de statut listant les sous-agents Claude Code actifs (type, description, duree) que l'extension officielle n'affiche pas.",
-  "version": "0.3.0",
+  "description": "Item de barre de statut listant les agents Claude Code actifs (sous-agents + sessions en arriere-plan) avec type, duree, projet/dossier reel et modele, que l'extension officielle n'affiche pas.",
+  "version": "0.4.0",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",
@@ -24,7 +24,9 @@
       "title": "Claude Subagents",
       "properties": {
         "claudeSubagents.refreshSeconds": { "type": "number", "default": 3, "description": "Intervalle de rafraichissement local (secondes)." },
-        "claudeSubagents.remoteHosts": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Alias SSH (~/.ssh/config) a interroger en plus du local pour compter les sous-agents actifs (ex: [\"growthfit\"]). Necessite ssh en PATH et une cle sans mot de passe. Vide = desactive." }
+        "claudeSubagents.remoteHosts": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Alias SSH (~/.ssh/config) a interroger en plus du local pour compter les sous-agents actifs (ex: [\"growthfit\"]). Necessite ssh en PATH et une cle sans mot de passe. Vide = desactive." },
+        "claudeSubagents.showBackground": { "type": "boolean", "default": true, "description": "Inclure les sessions en arriere-plan (claude agents / claude --bg) dans le compteur et la liste." },
+        "claudeSubagents.showAllProjects": { "type": "boolean", "default": false, "description": "Ignorer le filtre workspace et afficher les agents de tous les projets de la machine." }
       }
     }
   }
