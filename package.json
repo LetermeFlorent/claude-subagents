@@ -1,8 +1,8 @@
 {
   "name": "claude-subagents",
   "displayName": "Claude Subagents",
-  "description": "Item de barre de statut listant les agents Claude Code actifs (sous-agents + sessions en arriere-plan) avec type, duree, projet/dossier reel et modele, que l'extension officielle n'affiche pas.",
-  "version": "0.4.0",
+  "description": "Item de barre de statut listant les agents Claude Code actifs (sous-agents + sessions en arriere-plan) avec type, duree, dossier de travail, modele et effort, que l'extension officielle n'affiche pas.",
+  "version": "0.4.1",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",

@@ -68,21 +68,22 @@ function readHeadFields(p, maxBytes) {
     fs.readSync(fd, b, 0, b.length, 0);
     fs.closeSync(fd);
     buf = b.toString('utf8');
-  } catch (_) { return { cwd: null, model: null }; }
-  let cwd = null, model = null;
+  } catch (_) { return { cwd: null, model: null, effort: null }; }
+  let cwd = null, model = null, effort = null;
   for (const line of buf.split('\n')) {
     if (!line) continue;
     try {
       const o = JSON.parse(line);
       if (cwd === null && typeof o.cwd === 'string' && o.cwd) cwd = o.cwd;
+      if (effort === null && typeof o.effort === 'string' && o.effort) effort = o.effort;
       if (model === null) {
         if (o.type === 'assistant' && o.message && typeof o.message.model === 'string' && o.message.model) model = o.message.model;
         else if (typeof o.model === 'string' && o.model) model = o.model;
       }
-      if (cwd && model) break;
+      if (cwd && model && effort) break;
     } catch (_) {}
   }
-  return { cwd: cwd, model: model };
+  return { cwd: cwd, model: model, effort: effort };
 }
 
 function tailModel(p) {
@@ -122,6 +123,10 @@ function parentModel(parentJsonl) {
   return memoGet('m:' + parentJsonl, function () { return tailModel(parentJsonl); });
 }
 
+function parentEffort(parentJsonl) {
+  return memoGet('e:' + parentJsonl, function () { return readHeadFields(parentJsonl, 262144).effort; });
+}
+
 function fmtDur(ms) {
   const s = Math.round(ms / 1000);
   if (s < 60) return s + 's';
@@ -149,6 +154,8 @@ function digestAgent(id, metaPath, jsonlPath, opt) {
   if (opt.parentJsonl) cwd = cwd || (parentCwd(opt.parentJsonl) || '');
   let model = meta.model || head.model || '';
   if (!model && opt.parentJsonl) model = parentModel(opt.parentJsonl) || '';
+  let effort = meta.effort || head.effort || '';
+  if (!effort && opt.parentJsonl) effort = parentEffort(opt.parentJsonl) || '';
   opt.res.push({
     id: id,
     type: meta.customAgentType || meta.agentType || '?',
@@ -156,6 +163,7 @@ function digestAgent(id, metaPath, jsonlPath, opt) {
     proj: baseNameOf(cwd) || projLabel(opt.proj),
     cwd: cwd,
     model: model,
+    effort: effort,
     last: last,
     durLabel: fmtDur(Math.max(0, opt.now - started))
   });
@@ -215,11 +223,14 @@ function scan() {
   return res;
 }
 
-function bgModel(st) {
-  if (!st || !Array.isArray(st.respawnFlags)) return '';
-  const i = st.respawnFlags.indexOf('--model');
-  if (i >= 0 && st.respawnFlags[i + 1]) return st.respawnFlags[i + 1];
-  return '';
+function bgFlags(st) {
+  const out = { model: '', effort: '' };
+  if (!st || !Array.isArray(st.respawnFlags)) return out;
+  for (let i = 0; i < st.respawnFlags.length - 1; i++) {
+    if (st.respawnFlags[i] === '--model' && st.respawnFlags[i + 1]) out.model = st.respawnFlags[i + 1];
+    if (st.respawnFlags[i] === '--effort' && st.respawnFlags[i + 1]) out.effort = st.respawnFlags[i + 1];
+  }
+  return out;
 }
 
 function bgAgents() {
@@ -245,13 +256,15 @@ function bgAgents() {
     const cwd = String(w.cwd || (st && st.cwd) || '');
     if (!showAll && !inWorkspace(cwd)) continue;
     const detail = st ? (st.detail || st.intent || '') : '';
+    const flags = bgFlags(st);
     out.push({
       id: short + ':' + (st && st.state ? st.state : 'bg'),
       type: (st && st.template === 'bg') ? 'bg' : 'session',
       desc: String(detail).slice(0, 160),
       proj: baseNameOf(cwd),
       cwd: cwd,
-      model: bgModel(st),
+      model: flags.model,
+      effort: flags.effort,
       last: last,
       durLabel: fmtDur(Math.max(0, now - (w.startedAt || now)))
     });
@@ -298,6 +311,7 @@ function fetchRemote(host) {
             proj: host + (projMatch ? ':' + projLabel(projMatch[1]) : ''),
             cwd: '',
             model: meta.model || '',
+            effort: meta.effort || '',
             last: last,
             durLabel: fmtDur(Math.max(0, now - started))
           });
@@ -346,11 +360,11 @@ async function showList() {
   }
   const items = lastAgents.map(function (a) {
     const model = a.model ? '  @' + a.model : '';
-    const pathInfo = a.cwd ? '  \u00b7  ' + a.cwd : '';
+    const effort = a.effort ? '  e:' + a.effort : '';
     return {
-      label: '$(sync~spin) ' + a.type + model,
+      label: '$(sync~spin) ' + a.type + model + effort,
       description: a.durLabel,
-      detail: '[' + a.proj + '] ' + (a.desc || '(sans description)') + pathInfo
+      detail: '[' + a.proj + '] ' + (a.desc || '(sans description)')
     };
   });
   await vscode.window.showQuickPick(items, {
