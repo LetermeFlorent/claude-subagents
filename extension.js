@@ -5,6 +5,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 
 const ACTIVE_MS = 30000;
+const WF_MAX_MS = 900000;
 const BG_ALIVE_MS = 60000;
 const REMOTE_TIMEOUT_MS = 6000;
 const REMOTE_INTERVAL_MS = 15000;
@@ -127,6 +128,23 @@ function parentEffort(parentJsonl) {
   return memoGet('e:' + parentJsonl, function () { return readHeadFields(parentJsonl, 262144).effort; });
 }
 
+function workflowLive(dir) {
+  return memoGet('w:' + dir, function () {
+    let txt = '';
+    try { txt = fs.readFileSync(path.join(dir, 'journal.jsonl'), 'utf8'); } catch (_) { return null; }
+    const live = {};
+    for (const line of txt.split('\n')) {
+      if (!line) continue;
+      let o = null;
+      try { o = JSON.parse(line); } catch (_) { continue; }
+      if (!o || typeof o.agentId !== 'string') continue;
+      if (o.type === 'started') live[o.agentId] = 1;
+      else delete live[o.agentId];
+    }
+    return live;
+  });
+}
+
 function fmtDur(ms) {
   const s = Math.round(ms / 1000);
   if (s < 60) return s + 's';
@@ -148,7 +166,11 @@ function digestAgent(id, metaPath, jsonlPath, opt) {
     try { last = fs.statSync(metaPath).mtimeMs; } catch (_) {}
   }
   if (!last) return;
-  if (opt.now - last > ACTIVE_MS) return;
+  if (opt.now - last > ACTIVE_MS) {
+    if (opt.now - last > WF_MAX_MS || !opt.wfDir) return;
+    const live = workflowLive(opt.wfDir);
+    if (!live || !(live[id] || live[id.replace(/^agent-/, '')])) return;
+  }
   const head = jsonlPath ? readHeadFields(jsonlPath, 262144) : { cwd: null, model: null };
   let cwd = head.cwd || '';
   if (opt.parentJsonl) cwd = cwd || (parentCwd(opt.parentJsonl) || '');
@@ -172,17 +194,26 @@ function digestAgent(id, metaPath, jsonlPath, opt) {
 function collectMetas(dir, opt, depth) {
   let entries = [];
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+  const ids = [], seen = {};
+  let hasJournal = false;
   for (const e of entries) {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) {
       if (depth < MAX_DEPTH) collectMetas(full, opt, depth + 1);
       continue;
     }
+    if (e.name === 'journal.jsonl') { hasJournal = true; continue; }
     const isMeta = e.name.endsWith('.meta.json');
     const isJson = e.name.indexOf('agent-') === 0 && e.name.endsWith('.jsonl');
     if (!isMeta && !isJson) continue;
     const id = isMeta ? e.name.slice(0, -'.meta.json'.length) : e.name.slice(0, -'.jsonl'.length);
-    digestAgent(id, path.join(dir, id + '.meta.json'), path.join(dir, id + '.jsonl'), opt);
+    if (seen[id]) continue;
+    seen[id] = 1;
+    ids.push(id);
+  }
+  const dopt = hasJournal ? Object.assign({}, opt, { wfDir: dir }) : opt;
+  for (const id of ids) {
+    digestAgent(id, path.join(dir, id + '.meta.json'), path.join(dir, id + '.jsonl'), dopt);
   }
 }
 
@@ -201,6 +232,7 @@ function scan() {
     const pdir = path.join(projectsBase(), proj);
     let entries = [];
     try { entries = fs.readdirSync(pdir, { withFileTypes: true }); } catch (_) { continue; }
+    const seen = {};
     for (const e of entries) {
       if (e.isDirectory()) {
         const opt = {
@@ -213,6 +245,8 @@ function scan() {
       } else if (e.name.indexOf('agent-') === 0 && (e.name.endsWith('.meta.json') || e.name.endsWith('.jsonl'))) {
         const isMeta = e.name.endsWith('.meta.json');
         const id = isMeta ? e.name.slice(0, -'.meta.json'.length) : e.name.slice(0, -'.jsonl'.length);
+        if (seen[id]) continue;
+        seen[id] = 1;
         digestAgent(id, path.join(pdir, id + '.meta.json'), path.join(pdir, id + '.jsonl'), {
           proj: proj, parentJsonl: null, now: now, res: res
         });
