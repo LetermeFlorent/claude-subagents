@@ -306,12 +306,38 @@ function bgAgents() {
   return out;
 }
 
-const REMOTE_SCRIPT = "for f in $(find ~/.claude/projects -maxdepth 6 -name '*.meta.json' 2>/dev/null); do " +
-  "j=\"${f%.meta.json}.jsonl\"; " +
-  "l=$(stat -c %Y \"$j\" 2>/dev/null || stat -c %Y \"$f\" 2>/dev/null); " +
-  "s=$(stat -c %Y \"$f\" 2>/dev/null); " +
-  "printf '===META===\\n%s\\n%s\\n%s\\n' \"$f\" \"$l\" \"$s\"; cat \"$f\"; echo; " +
-  "done";
+const REMOTE_SCRIPT = [
+  'now=$(date +%s)',
+  'find "$HOME/.claude/projects" -maxdepth 6 -name \'*.meta.json\' 2>/dev/null | while IFS= read -r f; do',
+  'j="${f%.meta.json}.jsonl"',
+  'l=$(stat -c %Y "$j" 2>/dev/null) || l=$(stat -c %Y "$f" 2>/dev/null)',
+  '[ -n "$l" ] || continue',
+  'a=$((now-l))',
+  '[ "$a" -gt ' + Math.floor(WF_MAX_MS / 1000) + ' ] && continue',
+  'if [ "$a" -gt ' + Math.floor(ACTIVE_MS / 1000) + ' ]; then',
+  'd=$(dirname "$f")',
+  '[ -f "$d/journal.jsonl" ] || continue',
+  'n=$(basename "$f" .meta.json)',
+  'awk -v w="$n" -v w2="${n#agent-}" \'{if(match($0,/"agentId":"[^"]*"/)){i=substr($0,RSTART+11,RLENGTH-12); if($0~/"type":"started"/) L[i]=1; else delete L[i]}} END{exit ((w in L)||(w2 in L))?0:1}\' "$d/journal.jsonl" || continue',
+  'fi',
+  's=$(stat -c %Y "$f" 2>/dev/null) || s=$l',
+  'm=$(tail -c 65536 "$j" 2>/dev/null | grep \'"type":"assistant"\' | grep -o \'"model":"[^"]*"\' | tail -1 | sed \'s/^"model":"//;s/"$//\')',
+  'e=$(head -c 262144 "$j" 2>/dev/null | grep -o \'"effort":"[^"]*"\' | head -1 | sed \'s/^"effort":"//;s/"$//\')',
+  'c=$(head -c 262144 "$j" 2>/dev/null | grep -o \'"cwd":"[^"]*"\' | head -1 | sed \'s/^"cwd":"//;s/"$//\')',
+  'case "$f" in *"/subagents/"*)',
+  'p=$(printf \'%s\' "$f" | sed \'s#/subagents/.*##\').jsonl',
+  'if [ -f "$p" ]; then',
+  '[ -n "$m" ] || m=$(tail -c 65536 "$p" | grep \'"type":"assistant"\' | grep -o \'"model":"[^"]*"\' | tail -1 | sed \'s/^"model":"//;s/"$//\')',
+  '[ -n "$e" ] || e=$(head -c 262144 "$p" | grep -o \'"effort":"[^"]*"\' | head -1 | sed \'s/^"effort":"//;s/"$//\')',
+  '[ -n "$c" ] || c=$(head -c 262144 "$p" | grep -o \'"cwd":"[^"]*"\' | head -1 | sed \'s/^"cwd":"//;s/"$//\')',
+  'fi',
+  ';;',
+  'esac',
+  'printf \'===AGENT===\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n\' "$f" "$a" "$((now-s))" "$m" "$e" "$c"',
+  'cat "$f"',
+  'echo',
+  'done'
+].join('\n');
 
 function fetchRemote(host) {
   return new Promise(function (resolve) {
@@ -320,34 +346,30 @@ function fetchRemote(host) {
       function (err, stdout) {
         if (err || !stdout) { resolve([]); return; }
         const now = Date.now();
-        const blocks = stdout.split('===META===\n').slice(1);
+        const blocks = stdout.split('===AGENT===\n').slice(1);
         const res = [];
         for (const block of blocks) {
-          const nl1 = block.indexOf('\n');
-          const nl2 = block.indexOf('\n', nl1 + 1);
-          const nl3 = block.indexOf('\n', nl2 + 1);
-          if (nl1 < 0 || nl2 < 0 || nl3 < 0) continue;
-          const filePath = block.slice(0, nl1);
-          const lastSec = Number(block.slice(nl1 + 1, nl2));
-          const startSec = Number(block.slice(nl2 + 1, nl3));
-          const jsonText = block.slice(nl3 + 1).trim();
+          const lines = block.split('\n');
+          if (lines.length < 7) continue;
+          const filePath = lines[0];
+          const ageLast = Math.max(0, Number(lines[1]) || 0);
+          const ageStart = Math.max(0, Number(lines[2]) || 0);
           let meta = {};
-          try { meta = JSON.parse(jsonText); } catch (_) { continue; }
-          const last = lastSec ? lastSec * 1000 : now;
-          const started = startSec ? startSec * 1000 : last;
-          if (now - last > ACTIVE_MS) continue;
+          try { meta = JSON.parse(lines.slice(6).join('\n').trim()); } catch (_) { continue; }
+          const cwd = lines[5];
           const projMatch = /\/projects\/([^/]+)\//.exec(filePath);
           const id = path.basename(filePath, '.meta.json');
+          const proj = baseNameOf(cwd) || (projMatch ? projLabel(projMatch[1]) : '');
           res.push({
             id: host + ':' + id,
             type: meta.customAgentType || meta.agentType || '?',
             desc: meta.description || '',
-            proj: host + (projMatch ? ':' + projLabel(projMatch[1]) : ''),
-            cwd: '',
-            model: meta.model || '',
-            effort: meta.effort || '',
-            last: last,
-            durLabel: fmtDur(Math.max(0, now - started))
+            proj: host + (proj ? ':' + proj : ''),
+            cwd: cwd,
+            model: meta.model || lines[3] || '',
+            effort: meta.effort || lines[4] || '',
+            last: now - ageLast * 1000,
+            durLabel: fmtDur(ageStart * 1000)
           });
         }
         resolve(res);
