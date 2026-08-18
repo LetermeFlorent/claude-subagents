@@ -1,9 +1,9 @@
 {
-  "name": "claude-subagents",
-  "displayName": "Claude Subagents",
-  "description": "Item de barre de statut listant les agents Claude Code actifs (sous-agents + sessions en arriere-plan) avec type, duree, dossier de travail, modele et effort, que l'extension officielle n'affiche pas.",
+  "name": "claude-agents-statusbar",
+  "displayName": "Claude Agents Status Bar",
+  "description": "Unofficial status bar item showing the Claude Code agents running right now — subagents, workflow agents and background sessions — with type, model, effort, elapsed time and project.",
   "version": "0.4.3",
-  "publisher": "letermeflorent",
+  "publisher": "dreyka-oas",
   "license": "MIT",
   "icon": "icon.png",
   "repository": { "type": "git", "url": "https://github.com/LetermeFlorent/claude-subagents.git" },

@@ -1,36 +1,102 @@
-# Claude Subagents
+# Claude Agents Status Bar
 
-Panneau lateral VS Code qui liste les **sous-agents Claude Code** (Task / Agent) que l'extension officielle n'affiche pas : type, description, statut (actif / fini) et duree.
+[![Version](https://img.shields.io/visual-studio-marketplace/v/dreyka-oas.claude-agents-statusbar?label=marketplace)](https://marketplace.visualstudio.com/items?itemName=dreyka-oas.claude-agents-statusbar)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/dreyka-oas.claude-agents-statusbar)](https://marketplace.visualstudio.com/items?itemName=dreyka-oas.claude-agents-statusbar)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-![apercu](icon.png)
+**How many Claude Code agents are running right now?** This extension answers that with one number in your status bar — and one click gives you the whole roster.
 
-## Comment ca marche
+> **Unofficial extension.** Not affiliated with, endorsed by, or supported by Anthropic. "Claude" is a trademark of Anthropic, PBC.
 
-Claude Code ecrit chaque sous-agent dans `~/.claude/projects/<projet>/<session>/subagents/` :
-- `agent-<id>.meta.json` -> `{ agentType, description, spawnDepth }`
-- `agent-<id>.jsonl` -> le transcript (son `mtime` sert a savoir si l'agent est encore actif)
+---
 
-L'extension scanne ce dossier toutes les quelques secondes et affiche les agents recents. Un point **vert** = actif (transcript ecrit il y a moins de 45 s), **gris** = termine.
+## The problem
 
-## Installation
+When Claude Code fans out — a `Task` call, a `Workflow` spawning a dozen agents, a background session left running in another window — that work becomes invisible. The official extension shows you the conversation you are looking at, not the fleet behind it. You end up wondering whether anything is still running, or whether you are burning tokens on agents you forgot about.
 
-Depuis le `.vsix` (onglet Releases) :
+## What you get
+
+A single status bar item, always visible, spinning while work is in flight:
 
 ```
-code --install-extension claude-subagents-0.1.0.vsix
+$(sync~spin) 3 agents
 ```
 
-Puis Reload Window. L'icone **Claude Agents** apparait dans la barre d'activite.
+Click it and you get every one of them, sorted by most recent activity:
 
-> En Remote-SSH, installe l'extension cote serveur (la ou tourne Claude Code) : c'est la que les fichiers des sous-agents sont ecrits.
+```
+⟳ cavecrew-investigator  @claude-opus-5  e:high            42s
+  [hive] locate the worktree spawn path
 
-## Reglages
+⟳ general-purpose  @claude-sonnet-5                       3m18s
+  [chartographer] audit CurseForge fallback
 
-| Reglage | Defaut | Description |
+⟳ bg  @claude-opus-5  e:medium                            17m04s
+  [resume-mail] watching CI on the docker branch
+```
+
+Agent type, model, reasoning effort, elapsed time, project, and the description the agent was spawned with — searchable, because the QuickPick matches on all of it.
+
+## Features
+
+- **Counts everything**, not just the obvious: `Task`/`Agent` subagents, agents spawned inside a `Workflow`, and background sessions (`claude agents`, `claude --bg`)
+- **Survives thinking time.** Workflow agents are tracked through the run journal, not file timestamps — an agent that reasons for four minutes without writing anything still counts as alive
+- **Scoped to your workspace** by default, so a busy machine does not pollute the window you are working in. One setting shows everything
+- **Remote machines too**, over plain SSH — see the agents running on your VPS from your laptop
+- **Zero dependencies, zero network.** Reads files Claude Code already writes. Nothing is sent anywhere
+
+## How it works
+
+Claude Code records every agent on disk. The extension reads those records every few seconds and decides what is still alive:
+
+| Source | Path | Alive when |
 | --- | --- | --- |
-| `claudeSubagents.refreshSeconds` | `3` | Frequence de rafraichissement |
-| `claudeSubagents.keepMinutes` | `30` | Anciennete max des agents affiches |
+| Subagents | `~/.claude/projects/<project>/<session>/subagents/agent-<id>.{meta.json,jsonl}` | transcript written less than 30 s ago |
+| Workflow agents | same tree, under `subagents/workflows/wf_*/` | `journal.jsonl` shows a `started` line for that agent and no terminating line — capped at 15 min so a killed workflow does not linger |
+| Background sessions | `~/.claude/daemon/roster.json` + `~/.claude/jobs/<id>/state.json` | live PID, non-idle tempo, or timeline written less than 60 s ago |
 
-## Licence
+The journal rule is the important one. A thinking agent writes nothing for minutes, so the naive "was the transcript touched recently?" check reports most of a workflow as dead.
+
+`CLAUDE_CONFIG_DIR` and `CLAUDE_PROJECTS_DIR` are honoured if you have moved your Claude directory.
+
+## Watching remote machines
+
+Add SSH aliases from your `~/.ssh/config`:
+
+```jsonc
+"claudeSubagents.remoteHosts": ["growthfit", "syllabis-vps"]
+```
+
+Each host is polled every 15 s with `ssh -o BatchMode=yes` (6 s timeout), and its agents appear in the list prefixed with the host name. Requires `ssh` on your `PATH` and a key without a passphrase — batch mode never prompts, it just fails silently and the host is skipped.
+
+## Settings
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `claudeSubagents.refreshSeconds` | `3` | Local refresh interval, in seconds |
+| `claudeSubagents.remoteHosts` | `[]` | SSH aliases to poll in addition to the local machine |
+| `claudeSubagents.showBackground` | `true` | Include background sessions in the count and the list |
+| `claudeSubagents.showAllProjects` | `false` | Ignore the workspace filter and show agents from every project on the machine |
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `Claude Subagents: Show the list of active agents` | Same as clicking the status bar item |
+| `Claude Subagents: Refresh` | Forces an immediate rescan |
+
+## Troubleshooting
+
+**It always says 0 agent.** By default only agents whose working directory is inside the current workspace are counted. Turn on `claudeSubagents.showAllProjects` to check whether that filter is what is hiding them.
+
+**Remote agents never appear.** Test the exact command the extension uses: `ssh -o BatchMode=yes <alias> true`. If that prompts for anything or fails, the extension will get nothing.
+
+**Two items in the status bar over Remote-SSH.** Should not happen — the extension declares `"extensionKind": ["ui"]` and only ever runs in the local extension host. If you installed an older build server-side, uninstall it there.
+
+## Privacy
+
+No telemetry, no analytics, no network access — other than the `ssh` calls to hosts you explicitly list. Everything else is local file reads.
+
+## License
 
 MIT
