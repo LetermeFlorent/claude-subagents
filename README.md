@@ -10,6 +10,8 @@
 
 ---
 
+![The running agent count in the VS Code status bar](https://raw.githubusercontent.com/LetermeFlorent/claude-subagents/main/media/statusbar.png)
+
 ## The problem
 
 When Claude Code fans out — a `Task` call, a `Workflow` spawning a dozen agents, a background session left running in another window — that work becomes invisible. The official extension shows you the conversation you are looking at, not the fleet behind it. You end up wondering whether anything is still running, or whether you are burning tokens on agents you forgot about.

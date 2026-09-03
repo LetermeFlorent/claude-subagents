@@ -2,3 +2,4 @@
 .gitignore
 .vscodeignore
 *.vsix
+media/**
