@@ -3,7 +3,7 @@
   "displayName": "Claude Agents Status Bar",
   "description": "Unofficial status bar item showing the Claude Code agents running right now — subagents, workflow agents and background sessions — with type, model, effort, elapsed time and project.",
   "version": "0.4.3",
-  "publisher": "dreyka-oas",
+  "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",
   "repository": { "type": "git", "url": "https://github.com/LetermeFlorent/claude-subagents.git" },
