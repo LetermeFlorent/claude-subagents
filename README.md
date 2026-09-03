@@ -1,7 +1,7 @@
-# Claude Agents Status Bar
+# Claude Code Agents Status Bar
 
-[![Version](https://img.shields.io/visual-studio-marketplace/v/letermeflorent.claude-agents-statusbar?label=marketplace)](https://marketplace.visualstudio.com/items?itemName=letermeflorent.claude-agents-statusbar)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/letermeflorent.claude-agents-statusbar)](https://marketplace.visualstudio.com/items?itemName=letermeflorent.claude-agents-statusbar)
+[![Version](https://img.shields.io/visual-studio-marketplace/v/letermeflorent.claude-code-agents-statusbar?label=marketplace)](https://marketplace.visualstudio.com/items?itemName=letermeflorent.claude-code-agents-statusbar)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/letermeflorent.claude-code-agents-statusbar)](https://marketplace.visualstudio.com/items?itemName=letermeflorent.claude-code-agents-statusbar)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **How many Claude Code agents are running right now?** This extension answers that with one number in your status bar — and one click gives you the whole roster.

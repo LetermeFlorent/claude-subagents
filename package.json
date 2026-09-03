@@ -1,33 +1,77 @@
 {
-  "name": "claude-agents-statusbar",
-  "displayName": "Claude Agents Status Bar",
-  "description": "Unofficial status bar item showing the Claude Code agents running right now — subagents, workflow agents and background sessions — with type, model, effort, elapsed time and project.",
-  "version": "0.4.3",
-  "publisher": "letermeflorent",
-  "license": "MIT",
-  "icon": "icon.png",
-  "repository": { "type": "git", "url": "https://github.com/LetermeFlorent/claude-subagents.git" },
-  "homepage": "https://github.com/LetermeFlorent/claude-subagents#readme",
-  "bugs": { "url": "https://github.com/LetermeFlorent/claude-subagents/issues" },
-  "keywords": ["claude", "anthropic", "subagents", "agents", "claude code"],
-  "engines": { "vscode": "^1.75.0" },
-  "categories": ["Other"],
-  "activationEvents": ["onStartupFinished"],
-  "main": "./extension.js",
-  "extensionKind": ["ui"],
-  "contributes": {
-    "commands": [
-      { "command": "claudeSubagents.refresh", "title": "Claude Subagents: Rafraichir" },
-      { "command": "claudeSubagents.showList", "title": "Claude Subagents: Voir la liste des agents actifs" }
-    ],
-    "configuration": {
-      "title": "Claude Subagents",
-      "properties": {
-        "claudeSubagents.refreshSeconds": { "type": "number", "default": 3, "description": "Intervalle de rafraichissement local (secondes)." },
-        "claudeSubagents.remoteHosts": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Alias SSH (~/.ssh/config) a interroger en plus du local pour compter les sous-agents actifs (ex: [\"growthfit\"]). Necessite ssh en PATH et une cle sans mot de passe. Vide = desactive." },
-        "claudeSubagents.showBackground": { "type": "boolean", "default": true, "description": "Inclure les sessions en arriere-plan (claude agents / claude --bg) dans le compteur et la liste." },
-        "claudeSubagents.showAllProjects": { "type": "boolean", "default": false, "description": "Ignorer le filtre workspace et afficher les agents de tous les projets de la machine." }
-      }
-    }
-  }
+	"name": "claude-code-agents-statusbar",
+	"displayName": "Claude Code Agents Status Bar",
+	"description": "Unofficial status bar item showing the Claude Code agents running right now — subagents, workflow agents and background sessions — with type, model, effort, elapsed time and project.",
+	"version": "0.4.3",
+	"publisher": "letermeflorent",
+	"license": "MIT",
+	"icon": "icon.png",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/LetermeFlorent/claude-subagents.git"
+	},
+	"homepage": "https://github.com/LetermeFlorent/claude-subagents#readme",
+	"bugs": {
+		"url": "https://github.com/LetermeFlorent/claude-subagents/issues"
+	},
+	"keywords": [
+		"claude",
+		"anthropic",
+		"subagents",
+		"agents",
+		"claude code"
+	],
+	"engines": {
+		"vscode": "^1.75.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./extension.js",
+	"extensionKind": [
+		"ui"
+	],
+	"contributes": {
+		"commands": [
+			{
+				"command": "claudeSubagents.refresh",
+				"title": "Claude Subagents: Rafraichir"
+			},
+			{
+				"command": "claudeSubagents.showList",
+				"title": "Claude Subagents: Voir la liste des agents actifs"
+			}
+		],
+		"configuration": {
+			"title": "Claude Subagents",
+			"properties": {
+				"claudeSubagents.refreshSeconds": {
+					"type": "number",
+					"default": 3,
+					"description": "Intervalle de rafraichissement local (secondes)."
+				},
+				"claudeSubagents.remoteHosts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "Alias SSH (~/.ssh/config) a interroger en plus du local pour compter les sous-agents actifs (ex: [\"growthfit\"]). Necessite ssh en PATH et une cle sans mot de passe. Vide = desactive."
+				},
+				"claudeSubagents.showBackground": {
+					"type": "boolean",
+					"default": true,
+					"description": "Inclure les sessions en arriere-plan (claude agents / claude --bg) dans le compteur et la liste."
+				},
+				"claudeSubagents.showAllProjects": {
+					"type": "boolean",
+					"default": false,
+					"description": "Ignorer le filtre workspace et afficher les agents de tous les projets de la machine."
+				}
+			}
+		}
+	}
 }
