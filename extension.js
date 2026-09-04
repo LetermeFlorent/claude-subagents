@@ -679,7 +679,12 @@ class PanelProvider {
     if (!this.view) return;
     this.view.webview.postMessage({ type: 'agents', agents: lastAgents.map(agentPayload) });
     const n = lastAgents.length;
-    this.view.badge = n ? { value: n, tooltip: n + ' agent' + (n > 1 ? 's' : '') + ' actif' + (n > 1 ? 's' : '') } : undefined;
+    // Remettre `badge` a undefined laisse l'ancien chiffre colle sur l'icone
+    // (VS Code 1.136). Un badge a zero, lui, ne s'affiche pas du tout.
+    this.view.badge = {
+      value: n,
+      tooltip: n ? n + ' agent' + (n > 1 ? 's' : '') + ' actif' + (n > 1 ? 's' : '') : 'Aucun agent actif'
+    };
   }
 }
 

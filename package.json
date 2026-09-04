@@ -2,7 +2,7 @@
 	"name": "claude-code-agents-statusbar",
 	"displayName": "Claude Code Agents Status Bar",
 	"description": "Unofficial status bar item showing the Claude Code agents running right now (subagents, workflow agents and background sessions) with type, model, effort, elapsed time, parent session and project.",
-	"version": "0.6.1",
+	"version": "0.6.2",
 	"publisher": "letermeflorent",
 	"license": "MIT",
 	"icon": "icon.png",
@@ -38,19 +38,23 @@
 		"commands": [
 			{
 				"command": "claudeSubagents.refresh",
-				"title": "Claude Subagents: Rafraichir"
+				"title": "Rafraichir",
+				"category": "Claude Subagents"
 			},
 			{
 				"command": "claudeSubagents.showList",
-				"title": "Claude Subagents: Voir la liste des agents actifs"
+				"title": "Voir la liste des agents actifs",
+				"category": "Claude Subagents"
 			},
 			{
 				"command": "claudeSubagents.openPanel",
-				"title": "Claude Subagents: Ouvrir le panneau lateral"
+				"title": "Ouvrir le panneau lateral",
+				"category": "Claude Subagents"
 			},
 			{
 				"command": "claudeSubagents.openAgent",
-				"title": "Claude Subagents: Ouvrir le transcript de l agent"
+				"title": "Ouvrir le transcript de l agent",
+				"category": "Claude Subagents"
 			}
 		],
 		"viewsContainers": {
@@ -66,7 +70,7 @@
 			"claudeSubagents": [
 				{
 					"id": "claudeSubagents.panel",
-					"name": "Agents actifs",
+					"name": "Claude Agents",
 					"when": "claudeSubagents.panelEnabled",
 					"icon": "media/agents.svg",
 					"type": "webview"

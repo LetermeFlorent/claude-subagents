@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.2 - 2026-09-04
+
+- Fixed: the activity bar badge kept the previous count once the last agent
+  stopped, showing 1 or 3 next to an empty panel. Clearing it with `undefined`
+  leaves the old number stuck on the icon, so the count is now written as zero,
+  which VS Code hides on its own.
+- The panel is titled `Claude Agents` rather than `Claude Agents: Agents
+  actifs`, and its refresh button reads `Rafraichir` instead of repeating the
+  extension name. Commands keep their `Claude Subagents` prefix in the palette,
+  where it is what makes them findable.
+
 ## 0.6.1 - 2026-09-04
 
 The panel is a proper view now, not a tree. Each agent reads on three lines,
