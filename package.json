@@ -1,8 +1,8 @@
 {
 	"name": "claude-code-agents-statusbar",
 	"displayName": "Claude Code Agents Status Bar",
-	"description": "Unofficial status bar item showing the Claude Code agents running right now — subagents, workflow agents and background sessions — with type, model, effort, elapsed time and project.",
-	"version": "0.4.3",
+	"description": "Unofficial status bar item showing the Claude Code agents running right now (subagents, workflow agents and background sessions) with type, model, effort, elapsed time, parent session and project.",
+	"version": "0.5.0",
 	"publisher": "letermeflorent",
 	"license": "MIT",
 	"icon": "icon.png",
@@ -51,7 +51,31 @@
 				"claudeSubagents.refreshSeconds": {
 					"type": "number",
 					"default": 3,
-					"description": "Intervalle de rafraichissement local (secondes)."
+					"description": "Intervalle de rafraichissement local (secondes). La liste ouverte recalcule les durees chaque seconde sans relire le disque."
+				},
+				"claudeSubagents.idleMultiplier": {
+					"type": "number",
+					"default": 2,
+					"description": "Facteur applique a l'intervalle quand aucun agent n'est actif. 1 = meme cadence en permanence."
+				},
+				"claudeSubagents.unfocusedMultiplier": {
+					"type": "number",
+					"default": 4,
+					"description": "Facteur applique a l'intervalle quand la fenetre n'a pas le focus. Le retour au premier plan declenche un scan immediat."
+				},
+				"claudeSubagents.alignment": {
+					"type": "string",
+					"enum": [
+						"right",
+						"left"
+					],
+					"default": "right",
+					"description": "Cote de la barre d'etat ou placer le compteur."
+				},
+				"claudeSubagents.priority": {
+					"type": "number",
+					"default": -1000,
+					"description": "Position dans le groupe : plus la valeur est grande, plus l'element est pousse vers la gauche. Laisser bas pour rester tout a droite."
 				},
 				"claudeSubagents.remoteHosts": {
 					"type": "array",

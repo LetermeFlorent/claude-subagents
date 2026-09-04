@@ -109,40 +109,84 @@ function tailModel(p) {
   return null;
 }
 
-let memo = {};
+const HEAD_BYTES = 262144;
+const EMPTY_HEAD = { cwd: null, model: null, effort: null };
+const CACHE_MAX = 400;
 
-function memoGet(key, fn) {
-  if (!(key in memo)) memo[key] = fn();
-  return memo[key];
+const headCache = new Map();
+const tailCache = new Map();
+const wfCache = new Map();
+
+function statOf(p) {
+  try { return fs.statSync(p); } catch (_) { return null; }
 }
 
-function parentCwd(parentJsonl) {
-  return memoGet('c:' + parentJsonl, function () { return readHeadFields(parentJsonl, 262144).cwd; });
+// Les lignes d'un .jsonl s'ajoutent a la fin : une fois les trois champs lus,
+// l'en-tete ne bougera plus, et relire 256 Ko a chaque tick ne sert a rien.
+function headFields(p, st) {
+  const s = st || statOf(p);
+  if (!s) return EMPTY_HEAD;
+  const c = headCache.get(p);
+  if (c && s.size === c.size) return c.fields;
+  if (c && s.size > c.size && (c.complete || c.read >= HEAD_BYTES)) return c.fields;
+  const fields = readHeadFields(p, HEAD_BYTES);
+  headCache.set(p, {
+    fields: fields,
+    size: s.size,
+    read: Math.min(HEAD_BYTES, s.size),
+    complete: !!(fields.cwd && fields.model && fields.effort)
+  });
+  return fields;
 }
 
-function parentModel(parentJsonl) {
-  return memoGet('m:' + parentJsonl, function () { return tailModel(parentJsonl); });
+function tailModelCached(p) {
+  const s = statOf(p);
+  if (!s) return null;
+  const c = tailCache.get(p);
+  if (c && c.mtime === s.mtimeMs) return c.model;
+  const model = tailModel(p);
+  tailCache.set(p, { mtime: s.mtimeMs, model: model });
+  return model;
 }
 
-function parentEffort(parentJsonl) {
-  return memoGet('e:' + parentJsonl, function () { return readHeadFields(parentJsonl, 262144).effort; });
-}
+function parentCwd(parentJsonl) { return headFields(parentJsonl).cwd; }
+
+function parentModel(parentJsonl) { return tailModelCached(parentJsonl); }
+
+function parentEffort(parentJsonl) { return headFields(parentJsonl).effort; }
 
 function workflowLive(dir) {
-  return memoGet('w:' + dir, function () {
-    let txt = '';
-    try { txt = fs.readFileSync(path.join(dir, 'journal.jsonl'), 'utf8'); } catch (_) { return null; }
-    const live = {};
-    for (const line of txt.split('\n')) {
-      if (!line) continue;
-      let o = null;
-      try { o = JSON.parse(line); } catch (_) { continue; }
-      if (!o || typeof o.agentId !== 'string') continue;
-      if (o.type === 'started') live[o.agentId] = 1;
-      else delete live[o.agentId];
+  const jp = path.join(dir, 'journal.jsonl');
+  const s = statOf(jp);
+  if (!s) return null;
+  const c = wfCache.get(jp);
+  if (c && c.mtime === s.mtimeMs) return c.live;
+  let txt = '';
+  try { txt = fs.readFileSync(jp, 'utf8'); } catch (_) { return null; }
+  const live = {};
+  for (const line of txt.split('\n')) {
+    if (!line) continue;
+    let o = null;
+    try { o = JSON.parse(line); } catch (_) { continue; }
+    if (!o || typeof o.agentId !== 'string') continue;
+    if (o.type === 'started') live[o.agentId] = 1;
+    else delete live[o.agentId];
+  }
+  wfCache.set(jp, { mtime: s.mtimeMs, live: live });
+  return live;
+}
+
+function pruneCaches() {
+  if (headCache.size + tailCache.size + wfCache.size < CACHE_MAX) return;
+  const maps = [headCache, tailCache, wfCache];
+  for (const m of maps) {
+    for (const k of Array.from(m.keys())) {
+      if (!fs.existsSync(k)) m.delete(k);
     }
-    return live;
-  });
+  }
+  if (headCache.size + tailCache.size + wfCache.size >= CACHE_MAX) {
+    headCache.clear(); tailCache.clear(); wfCache.clear();
+  }
 }
 
 function fmtDur(ms) {
@@ -157,13 +201,12 @@ function digestAgent(id, metaPath, jsonlPath, opt) {
   if (metaPath) {
     try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (_) {}
   }
+  const jst = jsonlPath ? statOf(jsonlPath) : null;
   let last = 0, started = 0;
-  if (jsonlPath) {
-    try { last = fs.statSync(jsonlPath).mtimeMs; } catch (_) {}
-    try { started = fs.statSync(jsonlPath).birthtimeMs || fs.statSync(jsonlPath).ctimeMs || last; } catch (_) {}
-  }
+  if (jst) { last = jst.mtimeMs; started = jst.birthtimeMs || jst.ctimeMs || jst.mtimeMs; }
   if (!last && metaPath) {
-    try { last = fs.statSync(metaPath).mtimeMs; } catch (_) {}
+    const mst = statOf(metaPath);
+    if (mst) { last = mst.mtimeMs; started = started || mst.birthtimeMs || mst.ctimeMs || last; }
   }
   if (!last) return;
   if (opt.now - last > ACTIVE_MS) {
@@ -171,7 +214,7 @@ function digestAgent(id, metaPath, jsonlPath, opt) {
     const live = workflowLive(opt.wfDir);
     if (!live || !(live[id] || live[id.replace(/^agent-/, '')])) return;
   }
-  const head = jsonlPath ? readHeadFields(jsonlPath, 262144) : { cwd: null, model: null };
+  const head = jst ? headFields(jsonlPath, jst) : EMPTY_HEAD;
   let cwd = head.cwd || '';
   if (opt.parentJsonl) cwd = cwd || (parentCwd(opt.parentJsonl) || '');
   let model = meta.model || head.model || '';
@@ -186,8 +229,10 @@ function digestAgent(id, metaPath, jsonlPath, opt) {
     cwd: cwd,
     model: model,
     effort: effort,
+    session: opt.session || '',
+    file: jsonlPath || metaPath || '',
     last: last,
-    durLabel: fmtDur(Math.max(0, opt.now - started))
+    started: started || last
   });
 }
 
@@ -218,7 +263,6 @@ function collectMetas(dir, opt, depth) {
 }
 
 function scan() {
-  memo = {};
   const now = Date.now();
   const res = [];
   let projs = [];
@@ -238,6 +282,7 @@ function scan() {
         const opt = {
           proj: proj,
           parentJsonl: path.join(pdir, e.name + '.jsonl'),
+          session: e.name,
           now: now,
           res: res
         };
@@ -248,11 +293,12 @@ function scan() {
         if (seen[id]) continue;
         seen[id] = 1;
         digestAgent(id, path.join(pdir, id + '.meta.json'), path.join(pdir, id + '.jsonl'), {
-          proj: proj, parentJsonl: null, now: now, res: res
+          proj: proj, parentJsonl: null, session: '', now: now, res: res
         });
       }
     }
   }
+  pruneCaches();
   res.sort(function (a, b) { return b.last - a.last; });
   return res;
 }
@@ -299,8 +345,10 @@ function bgAgents() {
       cwd: cwd,
       model: flags.model,
       effort: flags.effort,
+      session: short,
+      file: path.join(JOBS, short, 'timeline.jsonl'),
       last: last,
-      durLabel: fmtDur(Math.max(0, now - (w.startedAt || now)))
+      started: w.startedAt || now
     });
   }
   return out;
@@ -360,6 +408,7 @@ function fetchRemote(host) {
           const projMatch = /\/projects\/([^/]+)\//.exec(filePath);
           const id = path.basename(filePath, '.meta.json');
           const proj = baseNameOf(cwd) || (projMatch ? projLabel(projMatch[1]) : '');
+          const sessMatch = /\/([^/]+)\/subagents\//.exec(filePath);
           res.push({
             id: host + ':' + id,
             type: meta.customAgentType || meta.agentType || '?',
@@ -368,8 +417,10 @@ function fetchRemote(host) {
             cwd: cwd,
             model: meta.model || lines[3] || '',
             effort: meta.effort || lines[4] || '',
+            session: sessMatch ? sessMatch[1] : '',
+            file: '',
             last: now - ageLast * 1000,
-            durLabel: fmtDur(ageStart * 1000)
+            started: now - ageStart * 1000
           });
         }
         resolve(res);
@@ -396,64 +447,207 @@ function scheduledRemote() {
   remoteTimer = setInterval(scanRemote, REMOTE_INTERVAL_MS);
 }
 
-let item, timer, lastAgents = [], lastText = null, lastTooltip = null;
+let item, timer, lastAgents = [], lastText = null, lastSig = null;
+let picker = null, pickerTimer = null;
+
+const sessionNum = new Map();
+
+function sessionLabel(session) {
+  if (!session) return '';
+  if (!sessionNum.has(session)) sessionNum.set(session, sessionNum.size + 1);
+  return '#' + sessionNum.get(session);
+}
+
+function itemFor(a, now) {
+  const model = a.model ? '  @' + a.model : '';
+  const effort = a.effort ? '  e:' + a.effort : '';
+  const idle = Math.max(0, now - a.last);
+  const sess = sessionLabel(a.session);
+  return {
+    label: '$(sync~spin) ' + a.type + model + effort,
+    description: fmtDur(Math.max(0, now - a.started)) + (idle >= 5000 ? '   silencieux ' + fmtDur(idle) : ''),
+    detail: (sess ? sess + ' ' : '') + '[' + a.proj + '] ' + (a.desc || '(sans description)'),
+    agent: a
+  };
+}
+
+function buildItems(now) {
+  const groups = new Map();
+  for (const a of lastAgents) {
+    const k = a.session || '';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(a);
+  }
+  const items = [];
+  const split = groups.size > 1;
+  for (const [k, list] of groups) {
+    if (split) {
+      items.push({
+        label: k ? 'Session ' + sessionLabel(k) + '  ' + String(k).slice(0, 8) : 'Sans session parente',
+        kind: vscode.QuickPickItemKind.Separator
+      });
+    }
+    for (const a of list) items.push(itemFor(a, now));
+  }
+  return items;
+}
+
+function placeholderFor() {
+  const n = lastAgents.length;
+  const s = n > 1 ? 's' : '';
+  return n + ' agent' + s + ' actif' + s + ', Entree pour ouvrir le transcript';
+}
+
+function openAgent(a) {
+  if (!a.file) {
+    vscode.window.showInformationMessage('Agent distant : aucun transcript en local.');
+    return;
+  }
+  if (!fs.existsSync(a.file)) {
+    vscode.window.showWarningMessage('Transcript introuvable : ' + a.file);
+    return;
+  }
+  vscode.workspace.openTextDocument(vscode.Uri.file(a.file)).then(function (doc) {
+    vscode.window.showTextDocument(doc, { preview: true });
+  });
+}
+
+function buildTooltip(now) {
+  const n = lastAgents.length;
+  if (!n) return 'Aucun agent actif';
+  const md = new vscode.MarkdownString(undefined, true);
+  md.isTrusted = true;
+  const s = n > 1 ? 's' : '';
+  md.appendMarkdown(n + ' agent' + s + ' actif' + s + '\n\n');
+  for (const a of lastAgents.slice(0, 12)) {
+    const sess = sessionLabel(a.session);
+    const parts = ['$(sync~spin)', a.type];
+    if (a.model) parts.push('@' + a.model);
+    parts.push(fmtDur(Math.max(0, now - a.started)));
+    if (sess) parts.push(sess);
+    parts.push('[' + a.proj + ']');
+    md.appendMarkdown(parts.join(' ') + '\n\n');
+  }
+  if (n > 12) md.appendMarkdown('et ' + (n - 12) + ' de plus\n\n');
+  md.appendMarkdown('[$(list-unordered) Ouvrir la liste](command:claudeSubagents.showList)');
+  return md;
+}
 
 function tick() {
   lastAgents = scan().concat(bgAgents()).concat(remoteAgents).sort(function (a, b) { return b.last - a.last; });
+  if (!item) return;
+  const now = Date.now();
   const n = lastAgents.length;
   const text = n ? '$(sync~spin) ' + n + ' agent' + (n > 1 ? 's' : '') : '$(circle-outline) 0 agent';
-  const tooltip = n ? 'Cliquer pour voir la liste des agents actifs' : 'Aucun agent actif';
-  if (text === lastText && tooltip === lastTooltip) return;
-  lastText = text; lastTooltip = tooltip;
-  item.text = text;
-  item.tooltip = tooltip;
+  let sig = '';
+  for (const a of lastAgents) sig += a.id + ':' + Math.round((now - a.started) / 1000) + '|';
+  if (text !== lastText) { item.text = text; lastText = text; }
+  if (sig !== lastSig) { item.tooltip = buildTooltip(now); lastSig = sig; }
 }
 
-async function showList() {
+function showList() {
   if (!lastAgents.length) {
     vscode.window.showInformationMessage('Aucun agent actif.');
     return;
   }
-  const items = lastAgents.map(function (a) {
-    const model = a.model ? '  @' + a.model : '';
-    const effort = a.effort ? '  e:' + a.effort : '';
-    return {
-      label: '$(sync~spin) ' + a.type + model + effort,
-      description: a.durLabel,
-      detail: '[' + a.proj + '] ' + (a.desc || '(sans description)')
-    };
+  if (picker) { picker.show(); return; }
+  const qp = vscode.window.createQuickPick();
+  picker = qp;
+  qp.matchOnDescription = true;
+  qp.matchOnDetail = true;
+  qp.placeholder = placeholderFor();
+  qp.items = buildItems(Date.now());
+  qp.onDidAccept(function () {
+    const sel = qp.selectedItems[0];
+    qp.hide();
+    if (sel && sel.agent) openAgent(sel.agent);
   });
-  await vscode.window.showQuickPick(items, {
-    placeHolder: lastAgents.length + ' agent' + (lastAgents.length > 1 ? 's' : '') + ' actif' + (lastAgents.length > 1 ? 's' : ''),
-    matchOnDescription: true,
-    matchOnDetail: true
+  qp.onDidHide(function () {
+    clearInterval(pickerTimer);
+    pickerTimer = null;
+    picker = null;
+    qp.dispose();
+    scheduled();
   });
+  // Les durees se recalculent sans relire le disque : seul l'ecart a `started` change.
+  pickerTimer = setInterval(function () {
+    const active = qp.activeItems[0];
+    const keep = active && active.agent ? active.agent.id : null;
+    qp.placeholder = placeholderFor();
+    qp.items = buildItems(Date.now());
+    if (keep) {
+      const again = qp.items.filter(function (i) { return i.agent && i.agent.id === keep; });
+      if (again.length) qp.activeItems = again;
+    }
+  }, 1000);
+  qp.show();
+  scheduled();
+}
+
+function baseMs() {
+  return Math.max(1, Number(cfg().get('refreshSeconds')) || 3) * 1000;
+}
+
+function nextDelay() {
+  const ms = baseMs();
+  if (picker) return ms;
+  const focused = !(vscode.window.state && vscode.window.state.focused === false);
+  if (!focused) return ms * Math.max(1, Number(cfg().get('unfocusedMultiplier')) || 1);
+  if (!lastAgents.length) return ms * Math.max(1, Number(cfg().get('idleMultiplier')) || 1);
+  return ms;
 }
 
 function scheduled() {
-  const ms = Math.max(1, Number(cfg().get('refreshSeconds')) || 3) * 1000;
-  clearInterval(timer);
-  timer = setInterval(tick, ms);
+  clearTimeout(timer);
+  timer = setTimeout(function () { tick(); scheduled(); }, nextDelay());
 }
 
-function activate(context) {
-  item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 110);
+function placeItem() {
+  if (item) item.dispose();
+  const left = String(cfg().get('alignment') || 'right').toLowerCase() === 'left';
+  const prio = Number(cfg().get('priority'));
+  item = vscode.window.createStatusBarItem(
+    left ? vscode.StatusBarAlignment.Left : vscode.StatusBarAlignment.Right,
+    isFinite(prio) ? prio : -1000
+  );
   item.name = 'Claude Subagents';
   item.command = 'claudeSubagents.showList';
   item.show();
-  context.subscriptions.push(item);
+  lastText = null;
+  lastSig = null;
+}
+
+function activate(context) {
+  placeItem();
   context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.refresh', tick));
   context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.showList', showList));
-  context.subscriptions.push(vscode.window.onDidChangeWindowState(function () { tick(); }));
+  context.subscriptions.push(vscode.window.onDidChangeWindowState(function () { tick(); scheduled(); }));
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(function (e) {
-    if (e.affectsConfiguration('claudeSubagents')) { scheduled(); scheduledRemote(); }
+    if (!e.affectsConfiguration('claudeSubagents')) return;
+    if (e.affectsConfiguration('claudeSubagents.alignment') || e.affectsConfiguration('claudeSubagents.priority')) {
+      placeItem();
+    }
+    tick();
+    scheduled();
+    scheduledRemote();
   }));
-  context.subscriptions.push({ dispose: function () { clearInterval(timer); clearInterval(remoteTimer); } });
+  context.subscriptions.push({
+    dispose: function () {
+      clearTimeout(timer);
+      clearInterval(remoteTimer);
+      clearInterval(pickerTimer);
+      if (item) item.dispose();
+    }
+  });
   tick();
   scheduled();
   scheduledRemote();
 }
 
-function deactivate() { clearInterval(timer); clearInterval(remoteTimer); }
+function deactivate() {
+  clearTimeout(timer);
+  clearInterval(remoteTimer);
+  clearInterval(pickerTimer);
+}
 
 module.exports = { activate, deactivate };
