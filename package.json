@@ -2,7 +2,7 @@
 	"name": "claude-code-agents-statusbar",
 	"displayName": "Claude Code Agents Status Bar",
 	"description": "Unofficial status bar item showing the Claude Code agents running right now (subagents, workflow agents and background sessions) with type, model, effort, elapsed time, parent session and project.",
-	"version": "0.6.0",
+	"version": "0.6.1",
 	"publisher": "letermeflorent",
 	"license": "MIT",
 	"icon": "icon.png",
@@ -68,7 +68,8 @@
 					"id": "claudeSubagents.panel",
 					"name": "Agents actifs",
 					"when": "claudeSubagents.panelEnabled",
-					"icon": "media/agents.svg"
+					"icon": "media/agents.svg",
+					"type": "webview"
 				}
 			]
 		},
@@ -119,10 +120,18 @@
 					"default": -1000,
 					"description": "Position dans le groupe : plus la valeur est grande, plus l'element est pousse vers la gauche. Laisser bas pour rester tout a droite."
 				},
-				"claudeSubagents.showPanel": {
-					"type": "boolean",
-					"default": false,
-					"description": "Afficher les agents dans un panneau de la barre d'activite plutot que dans la liste surgissante. Le panneau reste ouvert quand le focus part ailleurs ; le compteur de la barre d'etat y renvoie au lieu d'ouvrir la liste."
+				"claudeSubagents.listStyle": {
+					"type": "string",
+					"enum": [
+						"quickPick",
+						"panel"
+					],
+					"enumDescriptions": [
+						"Liste surgissante en haut de la fenetre. Se ferme des que le focus part ailleurs.",
+						"Panneau dans la barre d'activite a gauche. Reste ouvert tant que vous ne le fermez pas."
+					],
+					"default": "quickPick",
+					"description": "Ou afficher la liste des agents quand vous cliquez sur le compteur."
 				},
 				"claudeSubagents.remoteHosts": {
 					"type": "array",

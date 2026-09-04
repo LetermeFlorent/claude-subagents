@@ -1,0 +1,162 @@
+/* Tout vient des variables VS Code : un panneau qui impose ses propres
+   couleurs jure avec l'editeur des que l'utilisateur change de theme. */
+
+:root {
+  --gap: 10px;
+  --rail: 2px;
+  --radius: 3px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 6px 0 12px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: transparent;
+}
+
+.session {
+  /* Meme traitement que les entetes de section natifs de VS Code. */
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+  padding: 14px 12px 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.session:first-child { padding-top: 4px; }
+
+.session .count {
+  font-family: var(--vscode-editor-font-family);
+  letter-spacing: 0;
+  opacity: 0.75;
+}
+
+.agent {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 6px 12px 6px calc(12px + var(--gap));
+  border-radius: var(--radius);
+}
+
+/* Le rail porte l'etat : c'est la seule question qu'on se pose devant ce
+   panneau, est-ce que ca avance ou est-ce que c'est bloque. */
+.agent::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 7px;
+  bottom: 7px;
+  width: var(--rail);
+  border-radius: var(--rail);
+  background: var(--rail-color, var(--vscode-charts-green));
+}
+
+.agent.quiet { --rail-color: var(--vscode-charts-yellow); }
+.agent.stalled { --rail-color: var(--vscode-charts-orange); }
+.agent.remote { --rail-color: var(--vscode-charts-blue); }
+
+.agent:hover { background: var(--vscode-list-hoverBackground); }
+.agent:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.type {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.elapsed {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+}
+
+.desc {
+  margin-top: 2px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.desc.none {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.meta {
+  margin-top: 3px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  overflow-wrap: anywhere;
+}
+
+.meta .sep { opacity: 0.5; padding: 0 4px; }
+
+.quiet-flag { color: var(--vscode-charts-yellow); }
+.stalled-flag { color: var(--vscode-charts-orange); }
+
+.empty {
+  padding: 18px 12px;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.5;
+}
+
+.empty code {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+}
+
+/* Le point ne pulse que tant que l'agent ecrit encore : une animation qui
+   tourne en permanence finit par ne plus rien signaler. */
+.live {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--vscode-charts-green);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.agent.quiet .live,
+.agent.stalled .live { animation: none; opacity: 0.45; }
+.agent.quiet .live { background: var(--vscode-charts-yellow); }
+.agent.stalled .live { background: var(--vscode-charts-orange); }
+.agent.remote .live { background: var(--vscode-charts-blue); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live { animation: none; }
+}

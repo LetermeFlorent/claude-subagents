@@ -1,14 +1,24 @@
 # Changelog
 
+## 0.6.1 - 2026-09-04
+
+The panel is a proper view now, not a tree. Each agent reads on three lines,
+what it is with its elapsed time, what it was asked to do, then model, effort
+and project, with a rail down the left whose colour tracks whether output is
+still coming: green while it moves, yellow past five seconds of silence, orange
+past two minutes, blue for a remote agent. Measured values are set in the editor
+font and prose in the interface font. Every colour comes from the current theme,
+so it follows light and dark without a second palette.
+
+`showPanel` becomes `claudeSubagents.listStyle`, a choice between `quickPick`
+and `panel` rather than a checkbox, since it selects between two displays
+instead of switching something on.
+
 ## 0.6.0 - 2026-09-04
 
-Optional side panel, off by default. `claudeSubagents.showPanel` moves the agent
-list into its own activity bar view, which stays open when focus goes elsewhere
-instead of vanishing like the quick pick did. Sessions are collapsible, the
-count shows as a badge on the icon, hovering an agent gives its full detail and
-clicking one opens its transcript. Durations refresh every second while the
-panel is visible, still without re-reading the disk. With the panel on, the
-status bar counter reveals it rather than opening the quick pick.
+Optional side panel, off by default: the agent list can live in its own activity
+bar view, which stays open when focus goes elsewhere instead of vanishing like
+the quick pick did.
 
 ## 0.5.1 - 2026-09-04
 

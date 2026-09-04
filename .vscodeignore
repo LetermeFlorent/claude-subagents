@@ -4,3 +4,5 @@
 *.vsix
 media/**
 !media/agents.svg
+!media/panel.css
+!media/panel.js
