@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 - 2026-09-04
+
+Optional side panel, off by default. `claudeSubagents.showPanel` moves the agent
+list into its own activity bar view, which stays open when focus goes elsewhere
+instead of vanishing like the quick pick did. Sessions are collapsible, the
+count shows as a badge on the icon, hovering an agent gives its full detail and
+clicking one opens its transcript. Durations refresh every second while the
+panel is visible, still without re-reading the disk. With the panel on, the
+status bar counter reveals it rather than opening the quick pick.
+
 ## 0.5.1 - 2026-09-04
 
 - Fixed: when the last agent stopped while the list was open, the list went blank instead of saying so.

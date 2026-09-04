@@ -35,6 +35,21 @@ Session #2  7b04ee51
 
 Agent type, model, reasoning effort, elapsed time, project and the description the agent was spawned with, all searchable since the quick pick matches on every field. Durations count up live while the list is open. Pressing Enter on an agent opens its transcript.
 
+## Side panel
+
+A quick pick closes the moment you click anywhere else, which is the wrong shape for something you want to keep an eye on. Turn on `claudeSubagents.showPanel` and the same list moves to its own view in the activity bar, where it stays put:
+
+```
+CLAUDE AGENTS                              3
+  Session #1  a3f19c02              2 agents
+    ⟳ cavecrew-investigator   @claude-opus-5  e:high  42s
+    ⟳ general-purpose         @claude-sonnet-5  3m18s  silencieux 8s
+  Session #2  7b04ee51               1 agent
+    ⟳ bg                      @claude-opus-5  e:medium  17m04s
+```
+
+Sessions are collapsible, the count rides as a badge on the activity bar icon, hovering an agent gives its full detail and clicking one opens its transcript. Durations still refresh every second while the panel is visible, without re-reading the disk. With the panel on, clicking the status bar counter reveals it rather than opening the quick pick. Everything else, including the counter itself, works exactly as before.
+
 ## Telling three sessions apart
 
 Claude Code stores subagents under the session that spawned them, at `~/.claude/projects/<project>/<session>/subagents/`. Running three Claude sessions in one project therefore produces three separate trees, and each agent belongs to exactly one of them. The list groups agents under their parent session and gives each one a short number, so you can tell which of your windows is doing what.
@@ -82,6 +97,7 @@ Each host is polled every 15 s with `ssh -o BatchMode=yes` (6 s timeout), and it
 | `claudeSubagents.unfocusedMultiplier` | `4` | Interval multiplier when the window has no focus. Regaining focus rescans at once |
 | `claudeSubagents.alignment` | `"right"` | Which side of the status bar to sit on |
 | `claudeSubagents.priority` | `-1000` | Position within that side. Higher values push the item further left, so a low value keeps it at the far right |
+| `claudeSubagents.showPanel` | `false` | Show the agents in an activity bar panel instead of the quick pick. The panel stays open when focus moves elsewhere, and the status bar counter reveals it rather than opening the list |
 | `claudeSubagents.remoteHosts` | `[]` | SSH aliases to poll in addition to the local machine |
 | `claudeSubagents.showBackground` | `true` | Include background sessions in the count and the list |
 | `claudeSubagents.showAllProjects` | `false` | Ignore the workspace filter and show agents from every project on the machine |
@@ -92,6 +108,7 @@ Each host is polled every 15 s with `ssh -o BatchMode=yes` (6 s timeout), and it
 | --- | --- |
 | `Claude Subagents: Show the list of active agents` | Same as clicking the status bar item |
 | `Claude Subagents: Refresh` | Forces an immediate rescan |
+| `Claude Subagents: Open the side panel` | Reveals the panel, turning `showPanel` on first if it was off |
 
 ## Troubleshooting
 

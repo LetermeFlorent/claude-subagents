@@ -507,6 +507,9 @@ function placeholderFor() {
 }
 
 function openAgent(a) {
+  // La commande est aussi joignable sans argument si elle remonte dans la
+  // palette : mieux vaut ne rien faire que jeter.
+  if (!a) return;
   if (!a.file) {
     vscode.window.showInformationMessage('Agent distant : aucun transcript en local.');
     return;
@@ -551,9 +554,17 @@ function tick() {
   for (const a of lastAgents) sig += a.id + ':' + Math.round((now - a.started) / 1000) + '|';
   if (text !== lastText) { item.text = text; lastText = text; }
   if (sig !== lastSig) { item.tooltip = buildTooltip(now); lastSig = sig; }
+  refreshPanel();
 }
 
 function showList() {
+  // Le panneau reste ouvert quand le focus part ailleurs, contrairement au
+  // QuickPick : quand il est actif, le compteur y renvoie plutot que de
+  // rouvrir une liste qui se refermera au premier clic a cote.
+  if (panelEnabled()) {
+    vscode.commands.executeCommand('claudeSubagents.panel.focus');
+    return;
+  }
   if (!lastAgents.length) {
     vscode.window.showInformationMessage('Aucun agent actif.');
     return;
@@ -592,6 +603,120 @@ function showList() {
   scheduled();
 }
 
+function panelEnabled() { return cfg().get('showPanel') === true; }
+
+function agentTooltip(a, now) {
+  const md = new vscode.MarkdownString(undefined, true);
+  md.appendMarkdown('**' + a.type + '**\n\n');
+  if (a.desc) md.appendMarkdown(a.desc + '\n\n');
+  if (a.model) md.appendMarkdown('Modele : ' + a.model + '\n\n');
+  if (a.effort) md.appendMarkdown('Effort : ' + a.effort + '\n\n');
+  md.appendMarkdown('Projet : ' + a.proj + '\n\n');
+  if (a.cwd) md.appendMarkdown('Dossier : ' + a.cwd + '\n\n');
+  const idle = Math.max(0, now - a.last);
+  md.appendMarkdown('Actif depuis ' + fmtDur(Math.max(0, now - a.started)));
+  if (idle >= 5000) md.appendMarkdown(', silencieux depuis ' + fmtDur(idle));
+  return md;
+}
+
+function treeItemFor(a, now) {
+  const bits = [];
+  if (a.model) bits.push('@' + a.model);
+  if (a.effort) bits.push('e:' + a.effort);
+  const idle = Math.max(0, now - a.last);
+  bits.push(fmtDur(Math.max(0, now - a.started)));
+  if (idle >= 5000) bits.push('silencieux ' + fmtDur(idle));
+  const t = new vscode.TreeItem(a.type, vscode.TreeItemCollapsibleState.None);
+  // L'id doit rester stable d'un rafraichissement a l'autre, sinon VS Code
+  // perd l'etat deplie des sessions a chaque tick.
+  t.id = 'agent:' + a.id;
+  t.description = bits.join('  ');
+  t.tooltip = agentTooltip(a, now);
+  t.iconPath = new vscode.ThemeIcon('sync~spin');
+  t.contextValue = a.file ? 'agentWithTranscript' : 'agentRemote';
+  if (a.file) {
+    t.command = { command: 'claudeSubagents.openAgent', title: 'Ouvrir le transcript', arguments: [a] };
+  }
+  return t;
+}
+
+function sessionTreeItem(key, list) {
+  const label = key ? 'Session ' + sessionLabel(key) + '  ' + String(key).slice(0, 8) : 'Sans session parente';
+  const t = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.Expanded);
+  t.id = 'session:' + (key || 'orphan');
+  t.description = list.length + ' agent' + (list.length > 1 ? 's' : '');
+  t.iconPath = new vscode.ThemeIcon('comment-discussion');
+  t.contextValue = 'session';
+  return t;
+}
+
+function groupBySession(agents) {
+  const groups = new Map();
+  for (const a of agents) {
+    const k = a.session || '';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(a);
+  }
+  return groups;
+}
+
+class AgentsProvider {
+  constructor() {
+    this.emitter = new vscode.EventEmitter();
+    this.onDidChangeTreeData = this.emitter.event;
+  }
+
+  refresh() { this.emitter.fire(); }
+
+  getTreeItem(el) { return el; }
+
+  getChildren(el) {
+    const now = Date.now();
+    if (el && el.sessionKey !== undefined) {
+      const list = groupBySession(lastAgents).get(el.sessionKey) || [];
+      return list.map(function (a) { return treeItemFor(a, now); });
+    }
+    if (el) return [];
+    if (!lastAgents.length) {
+      const empty = new vscode.TreeItem('Aucun agent actif', vscode.TreeItemCollapsibleState.None);
+      empty.id = 'empty';
+      empty.iconPath = new vscode.ThemeIcon('circle-outline');
+      return [empty];
+    }
+    const groups = groupBySession(lastAgents);
+    // Une seule session : les entetes n'apporteraient qu'un niveau de plus a
+    // deplier pour rien.
+    if (groups.size <= 1) {
+      return lastAgents.map(function (a) { return treeItemFor(a, now); });
+    }
+    const out = [];
+    for (const [k, list] of groups) {
+      const t = sessionTreeItem(k, list);
+      t.sessionKey = k;
+      out.push(t);
+    }
+    return out;
+  }
+}
+
+let provider = null, treeView = null, panelTimer = null;
+
+function refreshPanel() {
+  if (!provider || !treeView) return;
+  provider.refresh();
+  const n = lastAgents.length;
+  treeView.badge = n ? { value: n, tooltip: n + ' agent' + (n > 1 ? 's' : '') + ' actif' + (n > 1 ? 's' : '') } : undefined;
+}
+
+// Le panneau visible reaffiche les durees chaque seconde, sans relire le
+// disque : seul l'ecart a `started` change entre deux secondes.
+function schedulePanelTicks() {
+  clearInterval(panelTimer);
+  panelTimer = null;
+  if (!treeView || !treeView.visible || !panelEnabled()) return;
+  panelTimer = setInterval(refreshPanel, 1000);
+}
+
 function baseMs() {
   return Math.max(1, Number(cfg().get('refreshSeconds')) || 3) * 1000;
 }
@@ -625,15 +750,43 @@ function placeItem() {
   lastSig = null;
 }
 
+function syncPanelContext() {
+  vscode.commands.executeCommand('setContext', 'claudeSubagents.panelEnabled', panelEnabled());
+}
+
 function activate(context) {
   placeItem();
+
+  provider = new AgentsProvider();
+  treeView = vscode.window.createTreeView('claudeSubagents.panel', { treeDataProvider: provider });
+  context.subscriptions.push(treeView);
+  context.subscriptions.push(treeView.onDidChangeVisibility(function () {
+    schedulePanelTicks();
+    if (treeView.visible) refreshPanel();
+  }));
+  syncPanelContext();
+
   context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.refresh', tick));
   context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.showList', showList));
+  context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.openAgent', openAgent));
+  context.subscriptions.push(vscode.commands.registerCommand('claudeSubagents.openPanel', function () {
+    if (!panelEnabled()) {
+      cfg().update('showPanel', true, vscode.ConfigurationTarget.Global).then(function () {
+        vscode.commands.executeCommand('claudeSubagents.panel.focus');
+      });
+      return;
+    }
+    vscode.commands.executeCommand('claudeSubagents.panel.focus');
+  }));
   context.subscriptions.push(vscode.window.onDidChangeWindowState(function () { tick(); scheduled(); }));
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(function (e) {
     if (!e.affectsConfiguration('claudeSubagents')) return;
     if (e.affectsConfiguration('claudeSubagents.alignment') || e.affectsConfiguration('claudeSubagents.priority')) {
       placeItem();
+    }
+    if (e.affectsConfiguration('claudeSubagents.showPanel')) {
+      syncPanelContext();
+      schedulePanelTicks();
     }
     tick();
     scheduled();
@@ -644,6 +797,7 @@ function activate(context) {
       clearTimeout(timer);
       clearInterval(remoteTimer);
       clearInterval(pickerTimer);
+      clearInterval(panelTimer);
       if (item) item.dispose();
     }
   });
@@ -656,6 +810,7 @@ function deactivate() {
   clearTimeout(timer);
   clearInterval(remoteTimer);
   clearInterval(pickerTimer);
+  clearInterval(panelTimer);
 }
 
 module.exports = { activate, deactivate };

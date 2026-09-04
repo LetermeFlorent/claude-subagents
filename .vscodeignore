@@ -3,3 +3,4 @@
 .vscodeignore
 *.vsix
 media/**
+!media/agents.svg

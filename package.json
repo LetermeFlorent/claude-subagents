@@ -2,7 +2,7 @@
 	"name": "claude-code-agents-statusbar",
 	"displayName": "Claude Code Agents Status Bar",
 	"description": "Unofficial status bar item showing the Claude Code agents running right now (subagents, workflow agents and background sessions) with type, model, effort, elapsed time, parent session and project.",
-	"version": "0.5.1",
+	"version": "0.6.0",
 	"publisher": "letermeflorent",
 	"license": "MIT",
 	"icon": "icon.png",
@@ -43,8 +43,50 @@
 			{
 				"command": "claudeSubagents.showList",
 				"title": "Claude Subagents: Voir la liste des agents actifs"
+			},
+			{
+				"command": "claudeSubagents.openPanel",
+				"title": "Claude Subagents: Ouvrir le panneau lateral"
+			},
+			{
+				"command": "claudeSubagents.openAgent",
+				"title": "Claude Subagents: Ouvrir le transcript de l agent"
 			}
 		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "claudeSubagents",
+					"title": "Claude Agents",
+					"icon": "media/agents.svg"
+				}
+			]
+		},
+		"views": {
+			"claudeSubagents": [
+				{
+					"id": "claudeSubagents.panel",
+					"name": "Agents actifs",
+					"when": "claudeSubagents.panelEnabled",
+					"icon": "media/agents.svg"
+				}
+			]
+		},
+		"menus": {
+			"view/title": [
+				{
+					"command": "claudeSubagents.refresh",
+					"when": "view == claudeSubagents.panel",
+					"group": "navigation"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "claudeSubagents.openAgent",
+					"when": "false"
+				}
+			]
+		},
 		"configuration": {
 			"title": "Claude Subagents",
 			"properties": {
@@ -76,6 +118,11 @@
 					"type": "number",
 					"default": -1000,
 					"description": "Position dans le groupe : plus la valeur est grande, plus l'element est pousse vers la gauche. Laisser bas pour rester tout a droite."
+				},
+				"claudeSubagents.showPanel": {
+					"type": "boolean",
+					"default": false,
+					"description": "Afficher les agents dans un panneau de la barre d'activite plutot que dans la liste surgissante. Le panneau reste ouvert quand le focus part ailleurs ; le compteur de la barre d'etat y renvoie au lieu d'ouvrir la liste."
 				},
 				"claudeSubagents.remoteHosts": {
 					"type": "array",
