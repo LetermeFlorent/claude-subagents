@@ -2,7 +2,7 @@
 	"name": "claude-code-agents-statusbar",
 	"displayName": "Claude Code Agents Status Bar",
 	"description": "Unofficial status bar item showing the Claude Code agents running right now (subagents, workflow agents and background sessions) with type, model, effort, elapsed time, parent session and project.",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"publisher": "letermeflorent",
 	"license": "MIT",
 	"icon": "icon.png",

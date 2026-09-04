@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 - 2026-09-04
+
+- Fixed: when the last agent stopped while the list was open, the list went blank instead of saying so.
+- Fixed: the SSH scan used `stat -c`, which only GNU coreutils understands, so a macOS or BSD host returned nothing. It now falls back to `stat -f`.
+
 ## 0.5.0 - 2026-09-04
 
 - Fixed: elapsed times were frozen while the list was open. The list is now a live quick pick that recomputes durations every second, without touching the disk.

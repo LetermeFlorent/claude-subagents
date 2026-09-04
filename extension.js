@@ -355,10 +355,13 @@ function bgAgents() {
 }
 
 const REMOTE_SCRIPT = [
+  // stat -c est GNU, stat -f est BSD : un hote macOS ou *BSD ne repond qu'au second.
+  'mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }',
   'now=$(date +%s)',
   'find "$HOME/.claude/projects" -maxdepth 6 -name \'*.meta.json\' 2>/dev/null | while IFS= read -r f; do',
   'j="${f%.meta.json}.jsonl"',
-  'l=$(stat -c %Y "$j" 2>/dev/null) || l=$(stat -c %Y "$f" 2>/dev/null)',
+  'l=$(mtime "$j")',
+  '[ -n "$l" ] || l=$(mtime "$f")',
   '[ -n "$l" ] || continue',
   'a=$((now-l))',
   '[ "$a" -gt ' + Math.floor(WF_MAX_MS / 1000) + ' ] && continue',
@@ -368,7 +371,8 @@ const REMOTE_SCRIPT = [
   'n=$(basename "$f" .meta.json)',
   'awk -v w="$n" -v w2="${n#agent-}" \'{if(match($0,/"agentId":"[^"]*"/)){i=substr($0,RSTART+11,RLENGTH-12); if($0~/"type":"started"/) L[i]=1; else delete L[i]}} END{exit ((w in L)||(w2 in L))?0:1}\' "$d/journal.jsonl" || continue',
   'fi',
-  's=$(stat -c %Y "$f" 2>/dev/null) || s=$l',
+  's=$(mtime "$f")',
+  '[ -n "$s" ] || s=$l',
   'm=$(tail -c 65536 "$j" 2>/dev/null | grep \'"type":"assistant"\' | grep -o \'"model":"[^"]*"\' | tail -1 | sed \'s/^"model":"//;s/"$//\')',
   'e=$(head -c 262144 "$j" 2>/dev/null | grep -o \'"effort":"[^"]*"\' | head -1 | sed \'s/^"effort":"//;s/"$//\')',
   'c=$(head -c 262144 "$j" 2>/dev/null | grep -o \'"cwd":"[^"]*"\' | head -1 | sed \'s/^"cwd":"//;s/"$//\')',
@@ -472,6 +476,9 @@ function itemFor(a, now) {
 }
 
 function buildItems(now) {
+  if (!lastAgents.length) {
+    return [{ label: '$(circle-outline) Aucun agent actif', alwaysShow: true }];
+  }
   const groups = new Map();
   for (const a of lastAgents) {
     const k = a.session || '';
@@ -494,6 +501,7 @@ function buildItems(now) {
 
 function placeholderFor() {
   const n = lastAgents.length;
+  if (!n) return 'Aucun agent actif';
   const s = n > 1 ? 's' : '';
   return n + ' agent' + s + ' actif' + s + ', Entree pour ouvrir le transcript';
 }
